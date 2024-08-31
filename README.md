@@ -1,7 +1,6 @@
 # Build System with PowerShell
 
-This is a simple 1-file build system template for C#/F# solutions implemented in
-PowerShell.
+This is a simple 1-file build system template for C#/F# solutions.
 
 This build system expects following solution layout:
 

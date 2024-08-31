@@ -138,7 +138,7 @@ function Step_PruneDocker {
         & docker $_ prune -f | Out-Null
     }
 
-    $(docker image ls --format "{{.Repository}}") | ForEach-Object {
+    $(docker image ls --format "{{.Repository}}:{{.Tag}}") | ForEach-Object {
         if ($_.StartsWith("${dockerComposeProject}-")) {
             LogCmd "docker image rm $_"
             & docker image rm $_ | Out-Null
@@ -190,6 +190,26 @@ function Step_DotnetTest {
     LogStep "dotnet test $ProjectFile --no-build --configuration $Configuration --logger:trx -nologo"
     & dotnet test "$ProjectFile" --no-build --configuration $Configuration --logger:trx --logger:"console;verbosity=normal" -nologo
     if (-not $?) { exit $LastExitCode }
+}
+
+function Step_DockerBuild {
+    param([ValidateNotNullOrEmpty()] [string]$DockerFilePath)
+    $file = Get-Item $DockerFilePath
+    $imageName = $file.BaseName
+    $imageTag = "${imageName}:${buildVersion}"
+    $dockerfile = $file.Name
+    $dir = $file.Directory.FullName
+
+    LogStep "docker build -t $imageTag -f $dockerfile ."
+    $currentLocation = Get-Location
+    try {
+        Set-Location $dir
+        & docker build -t $imageTag -f $dockerfile .
+        if (-not $?) { exit $LastExitCode }
+    }
+    finally {
+        Set-Location $currentLocation
+    }
 }
 
 function Step_DockerComposeStart {
@@ -315,8 +335,20 @@ function Target_Dotnet_Publish {
     }
 }
 
+function Target_Docker_Build {
+    DependsOn "Prelude"
+    DependsOn "Dotnet.Publish"
+
+    LogTarget "Docker.Build"
+    $dockerFiles = Get-ChildItem -Path $srcDir -Filter "*.Dockerfile" -Recurse -File
+    foreach ($dockerFile in $dockerFiles) {
+        LogInfo "Dockerfile found: $dockerFile"
+        Step_DockerBuild $dockerFile
+    }
+}
+
 function Target_DockerCompose_Start {
-    DependsOn "Prelude.DockerCli"
+    DependsOn "Prelude"
     DependsOn "Dotnet.Publish"
 
     LogTarget "DockerCompose.Start"
@@ -330,7 +362,7 @@ function Target_DockerCompose_Start {
 }
 
 function Target_DockerCompose_StartDetached {
-    DependsOn "Prelude.DockerCli"
+    DependsOn "Prelude"
     DependsOn "Dotnet.Publish"
 
     LogTarget "DockerCompose.StartDetached"
@@ -396,7 +428,7 @@ $exitResult = 0
 
 $currentLocation = Get-Location
 try {
-    LogInfo "*** BUILD: $Target ($Configuration) in $repositoryDir"
+    LogInfo "*** BUILD: $Target ($buildVersion $Configuration) in $repositoryDir"
     Set-Location $repositoryDir
 
     Invoke_BuildTarget $Target
