@@ -8,7 +8,7 @@ param(
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Release",
 
-    [string]$DotnetVerbosity = "quiet",
+    [string]$DotnetVerbosity = "minimal",
 
     [string]$VersionSuffix = ""
 )
@@ -214,32 +214,20 @@ function Step_DockerBuild {
 
 function Step_DockerComposeStart {
     LogStep "docker compose -p $dockerComposeProject up --build --abort-on-container-exit"
-    $composeArguments = 'compose', `
-        '-p', $dockerComposeProject, `
-        'up', `
-        '--build', `
-        '--abort-on-container-exit'
-    Start-Process -FilePath 'docker' -ArgumentList $composeArguments -WorkingDirectory $repositoryDir -Wait
+    & docker compose -p $dockerComposeProject up --build --abort-on-container-exit
+    if (-not $?) { exit $LastExitCode }
 }
 
 function Step_DockerComposeStartDetached {
     LogStep "docker compose -p $dockerComposeProject up --build --detach"
-    $composeArguments = 'compose', `
-        '-p', $dockerComposeProject, `
-        'up', `
-        '--build', `
-        '--detach'
-    Start-Process -FilePath 'docker' -ArgumentList $composeArguments -WorkingDirectory "$repositoryDir"
+    & docker compose -p $dockerComposeProject up --build --detach
     if (-not $?) { exit $LastExitCode }
 }
 
 function Step_DockerComposeStop {
     LogStep "docker compose -p $dockerComposeProject down"
-    $composeArguments = 'compose', `
-        '-p', $dockerComposeProject, `
-        '-f', './docker-compose.yaml', `
-        'down'
-    Start-Process -FilePath 'docker' -ArgumentList $composeArguments -WorkingDirectory $repositoryDir -Wait
+    & docker compose -p $dockerComposeProject down
+    if (-not $?) { exit $LastExitCode }
 }
 
 # Example of a step that extracts files from docker container
